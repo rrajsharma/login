@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Contact Form</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f9;
+        }
+
+        h2 {
+            text-align: center;
+            color: #333;
+            margin-top: 30px;
+        }
+
+        .form-container {
+            width: 100%;
+            max-width: 500px;
+            margin: 30px auto;
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        label {
+            display: block;
+            font-size: 14px;
+            margin-bottom: 6px;
+            color: #555;
+        }
+
+        input[type="text"], input[type="email"], textarea {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+
+        textarea {
+            resize: vertical;
+            height: 120px;
+        }
+
+        input[type="submit"] {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            cursor: pointer;
+            font-size: 16px;
+            border-radius: 4px;
+            transition: background-color 0.3s ease;
+        }
+
+        input[type="submit"]:hover {
+            background-color: #45a049;
+        }
+
+        .error {
+            color: red;
+            font-size: 14px;
+            margin-top: 10px;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 500px;
+            margin: 30px auto;
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .container span {
+            display: block;
+            font-size: 16px;
+            margin-bottom: 10px;
+            color: #333;
+        }
+
+        button {
+            padding: 10px 15px;
+            font-size: 16px;
+            color: white;
+            background-color: #007bff;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+            transition: background-color 0.3s ease;
+        }
+
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+
+        #player {
+            width: 100%;
+            margin-top: 15px;
+        }
+
+        #recorder {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+    <h2>Contact Form</h2>
+    
+    <div class="form-container">
+        <form id="contactForm" action="submit_form.php" method="POST" enctype="multipart/form-data">
+            <label for="name">Your Name:</label>
+            <input type="text" id="name" name="name" required>
+
+            <label for="email">Your Email:</label>
+            <input type="email" id="email" name="email" required>
+
+            <label for="message">Your Message:</label>
+            <textarea id="message" name="message" required></textarea>
+
+            <input type="submit" value="Submit">
+        </form>
+
+        <div id="error-message" class="error"></div>
+    </div>
+    
+    <div class="container">
+        <span>Recorder</span>
+        <audio id="recorder" muted hidden></audio>
+        <div>
+            <button id="start">Record</button>
+            <button id="stop" disabled>Stop Recording</button>
+        </div>
+        <span>Saved Recording</span>
+        <audio id="player" controls></audio>
+    </div>
+
+    <script>
+        document.getElementById("contactForm").addEventListener("submit", function(event) {
+            const email = document.getElementById("email").value;
+            const errorMessage = document.getElementById("error-message");
+
+            if (!email) {
+                errorMessage.textContent = "Please enter your email.";
+                event.preventDefault(); // Prevent form submission
+            } else {
+                errorMessage.textContent = ""; // Clear error message if email is filled
+            }
+        });
+
+        class VoiceRecorder {
+            constructor() {
+                this.mediaRecorder = null;
+                this.stream = null;
+                this.chunks = [];
+                this.isRecording = false;
+
+                this.recorderRef = document.querySelector("#recorder");
+                this.playerRef = document.querySelector("#player");
+                this.startRef = document.querySelector("#start");
+                this.stopRef = document.querySelector("#stop");
+                this.audioFileInput = document.createElement('input'); // Create a hidden input for audio file
+                this.audioFileInput.type = 'file';
+                this.audioFileInput.name = 'voiceMessage'; // Name the input field for PHP to recognize it
+
+                this.startRef.onclick = this.startRecording.bind(this);
+                this.stopRef.onclick = this.stopRecording.bind(this);
+
+                this.constraints = {
+                    audio: true,
+                    video: false
+                };
+            }
+
+            handleSuccess(stream) {
+                this.stream = stream;
+                this.stream.oninactive = () => {
+                    console.log("Stream ended!");
+                };
+                this.recorderRef.srcObject = this.stream;
+                this.mediaRecorder = new MediaRecorder(this.stream);
+                console.log(this.mediaRecorder);
+                this.mediaRecorder.ondataavailable = this.onMediaRecorderDataAvailable.bind(this);
+                this.mediaRecorder.onstop = this.onMediaRecorderStop.bind(this);
+                this.recorderRef.play();
+                this.mediaRecorder.start();
+            }
+
+            handleError(error) {
+                console.log("navigator.getUserMedia error: ", error);
+            }
+
+            onMediaRecorderDataAvailable(e) {
+                this.chunks.push(e.data);
+            }
+
+            onMediaRecorderStop(e) {
+                const blob = new Blob(this.chunks, { 'type': 'audio/ogg; codecs=opus' });
+                const audioURL = window.URL.createObjectURL(blob);
+                this.playerRef.src = audioURL;
+                this.chunks = [];
+                this.stream.getAudioTracks().forEach(track => track.stop());
+                this.stream = null;
+
+                // Create a file from the recorded audio and add it to the form
+                const file = new File([blob], 'recording.ogg', { type: 'audio/ogg' });
+                const dataTransfer = new DataTransfer();
+                dataTransfer.items.add(file);
+                this.audioFileInput.files = dataTransfer.files;
+
+                // Append the audio file input to the form
+                document.getElementById('contactForm').appendChild(this.audioFileInput);
+            }
+
+            startRecording() {
+                if (this.isRecording) return;
+                this.isRecording = true;
+                this.startRef.innerHTML = 'Recording...';
+                this.playerRef.src = '';
+                navigator.mediaDevices
+                    .getUserMedia(this.constraints)
+                    .then(this.handleSuccess.bind(this))
+                    .catch(this.handleError.bind(this));
+                this.stopRef.disabled = false;
+            }
+
+            stopRecording() {
+                if (!this.isRecording) return;
+                this.isRecording = false;
+                this.startRef.innerHTML = 'Record';
+                this.recorderRef.pause();
+                this.mediaRecorder.stop();
+                this.stopRef.disabled = true;
+            }
+        }
+
+        window.voiceRecorder = new VoiceRecorder();
+    </script>
+
+</body>
+</html>
